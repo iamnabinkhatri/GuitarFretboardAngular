@@ -1,6 +1,7 @@
 import { Component, Input, OnChanges, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 // ---------- Shared types & constants ----------
 type NoteTuple = [number, number, string]; // [fret, degree, noteName]
@@ -436,44 +437,35 @@ export class MetronomeComponent implements OnDestroy {
 
         <ng-container *ngIf="activeTab==='backing'">
           <div class="backing-panel">
-            <div class="grid">
-              <div>
-                <label class="field-label">Root note</label>
-                <div class="note-grid">
-                  <button *ngFor="let n of notes" class="note-btn" [class.active]="n === btRoot" (click)="btRoot = n">{{ n }}</button>
-                </div>
-              </div>
-              <div>
-                <label class="field-label">Scale type</label>
-                <select class="select full" [(ngModel)]="btScaleType">
-                  <option *ngFor="let s of backingScaleTypes" [value]="s">{{ s }}</option>
-                </select>
-              </div>
-              <div>
-                <label class="field-label">Genre</label>
-                <select class="select full" [(ngModel)]="btGenre">
-                  <option *ngFor="let g of genres" [value]="g">{{ g }}</option>
-                </select>
-              </div>
+            <div class="tabs" style="margin-bottom:16px">
+              <button class="tab-btn" [class.active]="backingMode==='key'" (click)="backingMode='key'">By key ({{ root }})</button>
+              <button class="tab-btn" [class.active]="backingMode==='genre'" (click)="backingMode='genre'">Browse by genre</button>
             </div>
 
-            <div class="backing-cta">
-              <a class="btn primary link-btn" [href]="backingSearchUrl" target="_blank" rel="noopener">
-                Search YouTube for {{ btRoot }} {{ btScaleType }} {{ btGenre }} backing track
-              </a>
-            </div>
-
-            <p class="note">
-              This opens a live YouTube search rather than linking one fixed video — backing-track channels come and
-              go, so a search stays accurate over time. Once you find one you like, bookmark it and pair it with the
-              scale/root you're practicing in the Explorer tab.
-            </p>
-
-            <div class="genre-grid">
-              <div class="genre-card" *ngFor="let g of genres" (click)="btGenre = g" [class.active]="g === btGenre">
-                {{ g }}
+            <ng-container *ngIf="backingMode==='key'; else genreMode">
+              <div class="note-grid" style="max-width:420px; margin-bottom:14px">
+                <button *ngFor="let n of notes" class="note-btn" [class.active]="n === root" (click)="changeRoot(n)">{{ n }}</button>
               </div>
-            </div>
+              <div class="video-embed">
+                <iframe [src]="backingKeyEmbedUrl" title="backing track player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+              </div>
+              <p class="note">
+                One dedicated backing track per key — pick a root note above and the video changes to match. This
+                uses the same root selector as the Scale Explorer, so it always reflects what you're practicing.
+              </p>
+            </ng-container>
+            <ng-template #genreMode>
+              <div class="genre-pills">
+                <button *ngFor="let g of genres" class="pill-btn" [class.active]="g===btGenre" (click)="btGenre=g">{{ g }}</button>
+              </div>
+              <div class="video-embed">
+                <iframe [src]="backingEmbedUrl" title="genre backing track player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+              </div>
+              <p class="note">
+                Curated genre playlist — not filtered to one key, so use the player's playlist panel (top-right) to
+                find the track in your key.
+              </p>
+            </ng-template>
           </div>
         </ng-container>
       </div>
@@ -520,6 +512,11 @@ export class MetronomeComponent implements OnDestroy {
     .backing-panel { background:#fff; border:0.5px solid #B4B2A9; border-radius:10px; padding:22px; }
     .backing-cta { margin: 18px 0; }
     .link-btn { display:inline-block; text-decoration:none; padding:10px 18px; }
+    .genre-pills { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+    .pill-btn { padding:6px 14px; border-radius:999px; border:0.5px solid #B4B2A9; background:transparent; color:#2C2C2A; font-family:sans-serif; font-size:13px; cursor:pointer; }
+    .pill-btn.active { background:#2C2C2A; color:#F1EFE8; border-color:#2C2C2A; }
+    .video-embed { position:relative; padding-bottom:56.25%; height:0; border-radius:8px; overflow:hidden; }
+    .video-embed iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:0; }
     .genre-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap:8px; margin-top:14px; }
     .genre-card { padding:14px 8px; text-align:center; border:0.5px solid #B4B2A9; border-radius:8px; font-family:sans-serif; font-size:13px; cursor:pointer; background:#F8F7F3; }
     .genre-card.active { background:#2C2C2A; color:#F1EFE8; border-color:#2C2C2A; }
@@ -549,9 +546,48 @@ export class AppComponent implements OnInit {
   genres = ['Rock', 'Pop', 'Metal', 'Blues', 'Jazz', 'Funk', 'Country', 'Ballad', 'Punk', 'Reggae'];
   btGenre = 'Rock';
 
-  get backingSearchUrl(): string {
-    const q = encodeURIComponent(`${this.btRoot} ${this.btScaleType} ${this.btGenre} backing track`);
-    return `https://www.youtube.com/results?search_query=${q}`;
+  private genrePlaylists: Record<string, string> = {
+    Rock: 'PL7_ykiLX1CAOrE6MF37Fr2k6yUgfZ_aP6',
+    Pop: 'PLUExMPmFbP3q0nIQZeKTX9znJHEBr2aYA',
+    Metal: 'UUPqUW1pUHGVGz679iM18lcQ',
+    Blues: 'UUdDrgupSK6NYXtj3CBcfw_w',
+    Jazz: 'UU3Nf709VMJmhvP1mNoxNC3g',
+    Funk: 'UU3Nf709VMJmhvP1mNoxNC3g',
+    Country: 'PLPY6Rb6f6GxRa-F_tcOb_KAOglaMWcSQ0',
+    Ballad: 'PLVHQ6uxWPG_Mo1niTIrYyZP3sPDefRZOV',
+    Punk: 'PLdbIlXBcJrN5ZvhO1HyKkJGN_Eo8RtZa2',
+    Reggae: 'PL9TA2yzjgoAyJrJ1m3P3i30xJ1MeOsm_m',
+  };
+
+  constructor(private sanitizer: DomSanitizer) {}
+
+  private keyVideos: Record<string, string> = {
+    'C': 'vQJEPT6Awvc',
+    'C#': 'MUb7mTDYE0I',
+    'D': 'l7g6ypCOjbU',
+    'D#': 'tbbJlIESbMo',
+    'E': 'boRq9wcXt2U',
+    'F': 'wtZrZjH5Vzc',
+    'F#': 'VNNDH2FrPcg',
+    'G': 'NXyyWl4WuiU',
+    'G#': 'gRGwoMBPhLU',
+    'A': 'tnYhQdP1nOg',
+    'A#': 'ienbldQtAu0',
+    'B': 'k100SP3Gk04',
+  };
+
+  backingMode: 'key' | 'genre' = 'key';
+
+  get backingKeyEmbedUrl(): SafeResourceUrl {
+    const videoId = this.keyVideos[this.root] || this.keyVideos['C'];
+    const url = `https://www.youtube.com/embed/${videoId}`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  }
+
+  get backingEmbedUrl(): SafeResourceUrl {
+    const listId = this.genrePlaylists[this.btGenre] || this.genrePlaylists['Rock'];
+    const url = `https://www.youtube.com/embed/videoseries?list=${listId}`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
   get scaleNoteList(): { name: string; isRoot: boolean }[] {
