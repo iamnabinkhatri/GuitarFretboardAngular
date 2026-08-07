@@ -332,6 +332,12 @@ export class MetronomeComponent implements OnDestroy {
           <span class="kicker">scale pattern explorer</span>
         </div>
 
+        <div class="tabs">
+          <button class="tab-btn" [class.active]="activeTab==='explorer'" (click)="activeTab='explorer'">Scale Explorer</button>
+          <button class="tab-btn" [class.active]="activeTab==='backing'" (click)="activeTab='backing'">Backing Tracks</button>
+        </div>
+
+        <ng-container *ngIf="activeTab==='explorer'">
         <div class="grid">
           <div>
             <label class="field-label">Scale</label>
@@ -371,6 +377,9 @@ export class MetronomeComponent implements OnDestroy {
           </div>
         </div>
 
+        <div class="explorer-body">
+          <div class="explorer-main">
+
         <ng-container *ngIf="fullNeck; else notFullNeck">
           <app-full-neck-svg [scale]="scale" [root]="root" [useNoteNames]="useNoteNames"></app-full-neck-svg>
         </ng-container>
@@ -402,6 +411,18 @@ export class MetronomeComponent implements OnDestroy {
           <span><span class="dot" style="background:#FAC775;border-color:#854F0B"></span>root</span>
           <span><span class="dot" style="background:#5DCAA5;border-color:#0F6E56"></span>scale tone</span>
         </div>
+          </div>
+
+          <div class="side-panel">
+            <div class="side-title">{{ root }} {{ scale }}</div>
+            <div class="note-list">
+              <span *ngFor="let n of scaleNoteList; let last = last" class="note-chip" [class.root-chip]="n.isRoot">
+                {{ n.name }}<span *ngIf="!last" class="note-sep">–</span>
+              </span>
+            </div>
+            <div class="side-hint">Scale tones in order, root shown twice to close the octave.</div>
+          </div>
+        </div>
 
         <p class="note">
           {{ scale.includes('Pentatonic')
@@ -411,6 +432,50 @@ export class MetronomeComponent implements OnDestroy {
         </p>
 
         <app-metronome></app-metronome>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab==='backing'">
+          <div class="backing-panel">
+            <div class="grid">
+              <div>
+                <label class="field-label">Root note</label>
+                <div class="note-grid">
+                  <button *ngFor="let n of notes" class="note-btn" [class.active]="n === btRoot" (click)="btRoot = n">{{ n }}</button>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Scale type</label>
+                <select class="select full" [(ngModel)]="btScaleType">
+                  <option *ngFor="let s of backingScaleTypes" [value]="s">{{ s }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Genre</label>
+                <select class="select full" [(ngModel)]="btGenre">
+                  <option *ngFor="let g of genres" [value]="g">{{ g }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="backing-cta">
+              <a class="btn primary link-btn" [href]="backingSearchUrl" target="_blank" rel="noopener">
+                Search YouTube for {{ btRoot }} {{ btScaleType }} {{ btGenre }} backing track
+              </a>
+            </div>
+
+            <p class="note">
+              This opens a live YouTube search rather than linking one fixed video — backing-track channels come and
+              go, so a search stays accurate over time. Once you find one you like, bookmark it and pair it with the
+              scale/root you're practicing in the Explorer tab.
+            </p>
+
+            <div class="genre-grid">
+              <div class="genre-card" *ngFor="let g of genres" (click)="btGenre = g" [class.active]="g === btGenre">
+                {{ g }}
+              </div>
+            </div>
+          </div>
+        </ng-container>
       </div>
     </div>
   `,
@@ -440,6 +505,24 @@ export class MetronomeComponent implements OnDestroy {
     .legend { display:flex; gap:20px; margin-top:14px; font-size:12px; font-family: sans-serif; color:#5F5E5A; }
     .dot { display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid; margin-right:6px; }
     .note { font-size:13px; color:#5F5E5A; font-family: sans-serif; line-height:1.6; margin-top:20px; max-width:640px; }
+    .tabs { display:flex; gap:8px; margin-bottom:20px; }
+    .tab-btn { padding:8px 16px; font-size:13px; font-family: sans-serif; border:0.5px solid #B4B2A9; border-radius:999px; background:transparent; color:#2C2C2A; cursor:pointer; }
+    .tab-btn.active { background:#2C2C2A; color:#F1EFE8; border-color:#2C2C2A; }
+    .explorer-body { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+    .explorer-main { flex:1; min-width:280px; }
+    .side-panel { width:180px; background:#fff; border:0.5px solid #B4B2A9; border-radius:10px; padding:16px; font-family:sans-serif; }
+    .side-title { font-size:14px; font-family:'Georgia', serif; margin-bottom:10px; }
+    .note-list { display:flex; flex-wrap:wrap; gap:2px 0; font-size:14px; }
+    .note-chip { padding:2px 2px; color:#2C2C2A; }
+    .note-chip.root-chip { font-weight:700; color:#854F0B; }
+    .note-sep { color:#B4B2A9; margin:0 2px; }
+    .side-hint { font-size:11px; color:#8A8880; margin-top:10px; line-height:1.4; }
+    .backing-panel { background:#fff; border:0.5px solid #B4B2A9; border-radius:10px; padding:22px; }
+    .backing-cta { margin: 18px 0; }
+    .link-btn { display:inline-block; text-decoration:none; padding:10px 18px; }
+    .genre-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap:8px; margin-top:14px; }
+    .genre-card { padding:14px 8px; text-align:center; border:0.5px solid #B4B2A9; border-radius:8px; font-family:sans-serif; font-size:13px; cursor:pointer; background:#F8F7F3; }
+    .genre-card.active { background:#2C2C2A; color:#F1EFE8; border-color:#2C2C2A; }
   `],
 })
 export class AppComponent implements OnInit {
@@ -457,6 +540,27 @@ export class AppComponent implements OnInit {
   showAll = false;
   fullNeck = false;
   repeatOctaves = false;
+
+  activeTab: 'explorer' | 'backing' = 'explorer';
+
+  btRoot = 'G';
+  btScaleType = 'Major';
+  backingScaleTypes = ['Major', 'Minor', 'Dorian', 'Mixolydian', 'Blues', 'Pentatonic'];
+  genres = ['Rock', 'Pop', 'Metal', 'Blues', 'Jazz', 'Funk', 'Country', 'Ballad', 'Punk', 'Reggae'];
+  btGenre = 'Rock';
+
+  get backingSearchUrl(): string {
+    const q = encodeURIComponent(`${this.btRoot} ${this.btScaleType} ${this.btGenre} backing track`);
+    return `https://www.youtube.com/results?search_query=${q}`;
+  }
+
+  get scaleNoteList(): { name: string; isRoot: boolean }[] {
+    const offsets = SCALE_OFFSETS[this.scale] || SCALE_OFFSETS['Major (Ionian)'];
+    const rootPc = NOTES.indexOf(this.root);
+    const list = offsets.map((o) => ({ name: NOTES[(rootPc + o) % 12], isRoot: o === 0 }));
+    list.push({ name: this.root, isRoot: true });
+    return list;
+  }
 
   async ngOnInit(): Promise<void> {
     const res = await fetch('assets/scale-data.json');
